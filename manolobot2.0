@@ -1,0 +1,126 @@
+import json
+import uuid
+
+# Workflow dictionary as provided by the user, properly structured
+workflow = {
+    "nodes": [
+        {
+            "parameters": {
+                "triggerOn": "newEmail",
+                "format": "resolved",
+                "labelProperty": "subject",
+                "additionalFields": {
+                    "includeBody": True
+                }
+            },
+            "id": "Gmail Trigger",
+            "name": "Gmail Trigger",
+            "type": "n8n-nodes-base.gmailTrigger",
+            "typeVersion": 1,
+            "position": [200, 300],
+            "credentials": {
+                "gmailOAuth2": "tu-credencial-gmail"
+            }
+        },
+        {
+            "parameters": {
+                "conditions": [
+                    {
+                        "value1": "={{$json[\"threadId\"] === $json[\"id\"]}}",
+                        "operation": "equal"
+                    }
+                ]
+            },
+            "id": "Filtro Nuevo Email",
+            "name": "Filtro Nuevo Email",
+            "type": "n8n-nodes-base.if",
+            "typeVersion": 1,
+            "position": [400, 300]
+        },
+        {
+            "parameters": {
+                "values": [
+                    {
+                        "name": "emailContent",
+                        "value": "={{$json[\"text\"]}}"
+                    },
+                    {
+                        "name": "emailFrom",
+                        "value": "={{$json[\"from\"]}}"
+                    },
+                    {
+                        "name": "emailSubject",
+                        "value": "={{$json[\"subject\"]}}"
+                    }
+                ],
+                "options": {}
+            },
+            "id": "Set Limpieza",
+            "name": "Set Limpieza",
+            "type": "n8n-nodes-base.set",
+            "typeVersion": 2,
+            "position": [600, 300]
+        },
+        {
+            "parameters": {
+                "prompt": (
+                    "Eres un asistente profesional. Redacta una respuesta amable, directa y clara al siguiente email:\n\n"
+                    "\"{{$json[\"emailContent\"]}}\"\n\n"
+                    "El tono debe ser humano, cordial y útil. No agregues información falsa ni exagerada."
+                ),
+                "temperature": 0.7,
+                "maxTokens": 300
+            },
+            "id": "ChatGPT",
+            "name": "ChatGPT",
+            "type": "n8n-nodes-base.openai",
+            "typeVersion": 2,
+            "position": [800, 300],
+            "credentials": {
+                "openAiApi": "tu-credencial-openai"
+            }
+        },
+        {
+            "parameters": {
+                "resource": "message",
+                "operation": "send",
+                "toAddresses": "={{$json[\"emailFrom\"]}}",
+                "subject": "Re: {{$json[\"emailSubject\"]}}",
+                "message": "={{$('ChatGPT').json.choices[0].text + \"\\n\\nSaludos cordiales,\\nTu Asistente IA\"}}"
+            },
+            "id": "Enviar Respuesta",
+            "name": "Enviar Respuesta",
+            "type": "n8n-nodes-base.gmail",
+            "typeVersion": 1,
+            "position": [1000, 300],
+            "credentials": {
+                "gmailOAuth2": "tu-credencial-gmail"
+            }
+        }
+    ],
+    "connections": {
+        "Gmail Trigger": {
+            "main": [[{"node": "Filtro Nuevo Email", "type": "main", "index": 0}]]
+        },
+        "Filtro Nuevo Email": {
+            "main": [[{"node": "Set Limpieza", "type": "main", "index": 0}]]
+        },
+        "Set Limpieza": {
+            "main": [[{"node": "ChatGPT", "type": "main", "index": 0}]]
+        },
+        "ChatGPT": {
+            "main": [[{"node": "Enviar Respuesta", "type": "main", "index": 0}]]
+        }
+    },
+    "name": "Responder Email con ChatGPT",
+    "active": False,
+    "settings": {},
+    "id": str(uuid.uuid4())
+}
+
+# Save to a JSON file
+file_path = "/mnt/data/n8n_responder_email_chatgpt.json"
+with open(file_path, "w") as f:
+    json.dump(workflow, f, indent=2)
+
+file_path
